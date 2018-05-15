@@ -15,16 +15,13 @@ import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.XMLEvent;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -34,9 +31,9 @@ import static de.flapdoodle.embed.process.io.file.Files.createTempFile;
 public class BundleExtractor implements IDownloader {
     private Path mavenHome = null;
 
-    private Path findMavenHome() throws IOException {
+    private Optional<Path> findMavenHome() throws IOException {
         if (mavenHome != null) {
-            return mavenHome;
+            return Optional.of(mavenHome);
         }
         //region env: MAVEN_HOME
         String mavenHome = System.getenv("MAVEN_HOME");
@@ -84,7 +81,7 @@ public class BundleExtractor implements IDownloader {
                         .filter(Files::isReadable)
                         .orElse(null);
                 if (this.mavenHome != null) {
-                    return this.mavenHome;
+                    return Optional.of(this.mavenHome);
                 }
             }
         }
@@ -98,9 +95,9 @@ public class BundleExtractor implements IDownloader {
                 .filter(Files::isDirectory)
                 .filter(Files::isReadable)
                 .orElse(null);
-
         //endregion
-        return this.mavenHome;
+
+        return Optional.ofNullable(this.mavenHome);
     }
 
     static Optional<String> extractFromXml(Path xml, String searchTag) throws IOException {
@@ -147,18 +144,31 @@ public class BundleExtractor implements IDownloader {
                 .toString()
                 .replaceFirst("^V", "")
                 .replace('_', '.');
+        String snapshot = version + "-SNAPSHOT";
         Path jar = findMavenHome()
-                .resolve("com").resolve("github").resolve("valery1707")
-                .resolve("mongo-bundle")
-                .resolve(version)
-                .resolve("mongo-bundle" + "-" + version + ".jar");
+                .map(path -> path.resolve("com").resolve("github").resolve("valery1707"))
+                .map(path -> path.resolve("mongo-bundle"))
+                .flatMap(path -> Stream
+                        .of(
+                                path.resolve(version),
+                                path.resolve(snapshot)
+                        )
+                        .filter(Files::isDirectory)
+                        .findFirst()
+                )
+                .flatMap(path -> Stream
+                        .of(
+                                path.resolve("mongo-bundle" + "-" + version + ".jar"),
+                                path.resolve("mongo-bundle" + "-" + snapshot + ".jar")
+                        )
+                        .filter(BundleExtractor::isReadableFile)
+                        .findFirst()
+                )
+                .orElseThrow(() -> new IOException("Mongo bundle jar not found"));
         String name = String.format("mongo/%s-%s-%s.%s",
                 distribution.getPlatform(), distribution.getVersion(), distribution.getBitsize(),
                 config.getPackageResolver().getArchiveType(distribution)
         );
-        if (!isReadableFile(jar)) {
-            throw new IOException("Mongo bundle jar not found: " + jar.normalize().toAbsolutePath().toString());
-        }
         try (
                 InputStream input = Files.newInputStream(jar);
                 ZipInputStream zip = new ZipInputStream(input);
@@ -175,7 +185,7 @@ public class BundleExtractor implements IDownloader {
         return ret;
     }
 
-    private boolean isReadableFile(Path jar) {
+    private static boolean isReadableFile(Path jar) {
         return Files.exists(jar) && Files.isRegularFile(jar) && Files.isReadable(jar);
     }
 }
