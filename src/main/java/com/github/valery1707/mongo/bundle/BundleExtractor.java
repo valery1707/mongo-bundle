@@ -14,20 +14,23 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static de.flapdoodle.embed.process.io.file.Files.createTempFile;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 @SuppressWarnings("UnnecessarySemicolon")
 public class BundleExtractor implements IDownloader {
     private Path mavenHome = null;
 
-    private Optional<Path> findMavenHome() throws IOException {
+    private List<Path> findMavenHome() throws IOException {
         if (mavenHome != null) {
-            return Optional.of(mavenHome);
+            return singletonList(mavenHome);
         }
         //region env: MAVEN_HOME
         String mavenHome = System.getenv("MAVEN_HOME");
@@ -43,7 +46,7 @@ public class BundleExtractor implements IDownloader {
                         .filter(Files::isReadable)
                         .orElse(null);
                 if (this.mavenHome != null) {
-                    return Optional.of(this.mavenHome);
+                    return singletonList(this.mavenHome);
                 }
             }
         }
@@ -59,7 +62,7 @@ public class BundleExtractor implements IDownloader {
                 .orElse(null);
         //endregion
 
-        return Optional.ofNullable(this.mavenHome);
+        return this.mavenHome != null ? singletonList(this.mavenHome) : emptyList();
     }
 
     static Optional<String> extractFromXml(Path xml, String searchTag) throws IOException {
@@ -108,6 +111,7 @@ public class BundleExtractor implements IDownloader {
                 .replace('_', '.');
         String snapshot = version + "-SNAPSHOT";
         Path jar = findMavenHome()
+                .stream()
                 .map(path -> path.resolve("com").resolve("github").resolve("valery1707"))
                 .map(path -> path.resolve("mongo-bundle"))
                 .flatMap(path -> Stream
@@ -116,16 +120,15 @@ public class BundleExtractor implements IDownloader {
                                 path.resolve(snapshot)
                         )
                         .filter(Files::isDirectory)
-                        .findFirst()
                 )
                 .flatMap(path -> Stream
                         .of(
                                 path.resolve("mongo-bundle" + "-" + version + ".jar"),
                                 path.resolve("mongo-bundle" + "-" + snapshot + ".jar")
                         )
-                        .filter(BundleExtractor::isReadableFile)
-                        .findFirst()
                 )
+                .filter(BundleExtractor::isReadableFile)
+                .findFirst()
                 .orElseThrow(() -> new IOException("Mongo bundle jar not found"));
         String name = String.format("mongo/%s-%s-%s.%s",
                 distribution.getPlatform(), distribution.getVersion(), distribution.getBitsize(),
