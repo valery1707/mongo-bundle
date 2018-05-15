@@ -12,7 +12,7 @@ def versionRaw = properties['mongo.version'] as String
 def rootRaw = properties['bundle.root'] as String
 println "Requested MongoDb distribution for version $versionRaw into $rootRaw"
 
-def versionInt = "V" + versionRaw.replace('.', '_')
+def versionInt = versionRaw.find("\\d") ? "V" + versionRaw.replace('.', '_') : versionRaw
 IVersion version
 try {
     version = Version.Main.valueOf(versionInt)
