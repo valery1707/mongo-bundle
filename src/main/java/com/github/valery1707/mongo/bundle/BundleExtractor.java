@@ -5,12 +5,7 @@ import de.flapdoodle.embed.process.distribution.Distribution;
 import de.flapdoodle.embed.process.io.directories.PropertyOrPlatformTempDir;
 import de.flapdoodle.embed.process.store.IDownloader;
 import org.apache.commons.io.IOUtils;
-import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -20,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -41,38 +35,6 @@ public class BundleExtractor implements IDownloader {
             Path home = Paths.get(mavenHome);
             Path settings = home.resolve("conf").resolve("settings.xml");
             if (isReadableFile(settings)) {
-                try (
-                        InputStream stream = Files.newInputStream(settings);
-                ) {
-                    SAXParserFactory factory = SAXParserFactory.newInstance();
-                    factory.setValidating(false);
-                    AtomicReference<String> localRepository = new AtomicReference<>();
-                    factory.newSAXParser().parse(stream, new DefaultHandler() {
-                        private String element;
-
-                        @Override
-                        public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
-                            element = qName;
-                            super.startElement(uri, localName, qName, attributes);
-                        }
-
-                        @Override
-                        public void characters(char[] ch, int start, int length) throws SAXException {
-                            if ("localRepository".equals(element)) {
-                                localRepository.set(new String(ch, start, length));
-                            }
-                            super.characters(ch, start, length);
-                        }
-
-                        @Override
-                        public void endElement(String uri, String localName, String qName) throws SAXException {
-                            super.endElement(uri, localName, qName);
-                            element = null;
-                        }
-                    });
-                } catch (IOException | SAXException | ParserConfigurationException e) {
-                    throw new IOException("Fail to parse maven configuration from " + settings.normalize().toAbsolutePath().toString(), e);
-                }
                 this.mavenHome = extractFromXml(settings, "/settings/localRepository")
                         .map(path -> path.replace("${user.home}", System.getenv("USERPROFILE")))
                         .map(Paths::get)
