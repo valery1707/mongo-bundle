@@ -6,7 +6,7 @@
 
     <groupId>com.github.valery1707</groupId>
     <artifactId>mongo-bundle</artifactId>
-    <version>PRODUCTION</version>
+    <version>3.5</version>
 
     <properties>
         <project.encoding>UTF-8</project.encoding>
