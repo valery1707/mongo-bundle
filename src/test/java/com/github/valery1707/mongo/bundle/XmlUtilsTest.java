@@ -12,10 +12,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 
-import static com.github.valery1707.mongo.bundle.BundleExtractor.extractFromXml;
+import static com.github.valery1707.mongo.bundle.XmlUtils.extractFromXml;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class BundleExtractorTest {
+public class XmlUtilsTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -32,7 +32,7 @@ public class BundleExtractorTest {
     }
 
     private Path extract(String resource) throws IOException {
-        return extract(() -> BundleExtractorTest.class.getResourceAsStream(resource));
+        return extract(() -> XmlUtilsTest.class.getResourceAsStream(resource));
     }
 
     @Test

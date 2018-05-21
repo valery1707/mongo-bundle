@@ -6,10 +6,6 @@ import de.flapdoodle.embed.process.io.directories.PropertyOrPlatformTempDir;
 import de.flapdoodle.embed.process.store.IDownloader;
 import org.apache.commons.io.IOUtils;
 
-import javax.xml.stream.XMLEventReader;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.events.XMLEvent;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +16,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static com.github.valery1707.mongo.bundle.XmlUtils.extractFromXml;
 import static de.flapdoodle.embed.process.io.file.Files.createTempFile;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -63,32 +60,6 @@ public class BundleExtractor implements IDownloader {
         //endregion
 
         return this.mavenHome != null ? singletonList(this.mavenHome) : emptyList();
-    }
-
-    static Optional<String> extractFromXml(Path xml, String searchTag) throws IOException {
-        try (
-                InputStream stream = Files.newInputStream(xml);
-        ) {
-            String name = "";
-            XMLInputFactory factory = XMLInputFactory.newInstance();
-            XMLEventReader reader = factory.createFilteredReader(
-                    factory.createXMLEventReader(stream, "UTF-8"),
-                    event -> event.isStartElement() || event.isEndElement() || event.isCharacters()
-            );
-            while (reader.hasNext()) {
-                XMLEvent event = (XMLEvent) reader.next();
-                if (event.isCharacters() && !event.asCharacters().isWhiteSpace() && searchTag.equals(name)) {
-                    return Optional.ofNullable(event.asCharacters().getData());
-                } else if (event.isStartElement()) {
-                    name += "/" + event.asStartElement().getName().getLocalPart();
-                } else if (event.isEndElement()) {
-                    name = name.substring(0, name.lastIndexOf('/'));
-                }
-            }
-        } catch (IOException | XMLStreamException e) {
-            throw new IOException("Fail to parse xml from " + xml.normalize().toAbsolutePath().toString(), e);
-        }
-        return Optional.empty();
     }
 
     @Override
