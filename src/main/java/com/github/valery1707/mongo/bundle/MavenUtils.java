@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -86,7 +85,7 @@ public final class MavenUtils {
                 ))
                 .filter(FileUtils::isReadableFile)
                 //get last
-                .max(Comparator.<Path, FileTime>comparing(FileUtils::getLastModifiedTime).reversed())
+                .max(Comparator.comparing(FileUtils::getLastModifiedTime))
                 ;
     }
 }

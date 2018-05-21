@@ -11,9 +11,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static com.github.valery1707.mongo.bundle.MavenUtils.ENV;
 import static com.github.valery1707.mongo.bundle.MavenUtils.FS;
@@ -23,6 +27,8 @@ public class MavenUtilsTest {
     private static final String ENV_MAVEN_HOME = "MAVEN_HOME";
     private static final String ENV_USER_HOME = "USER" + "PROFILE";
     private static final String[] ENV_NAMES = new String[]{ENV_MAVEN_HOME, ENV_USER_HOME};
+    private static final String GROUP = "com.github.valery1707.test";
+    private static final String ARTIFACT = "test-lib";
 
     private final Map<String, String> env = new HashMap<>();
 
@@ -100,5 +106,44 @@ public class MavenUtilsTest {
         } finally {
             System.setProperty("user.home", oldHome);
         }
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private static Path createLibrary(Path repo, String group, String artifact, String version, String suffix, LocalDateTime downloadAt) throws IOException {
+        Path path = Stream
+                .of(group.split("\\.")).reduce(repo, Path::resolve, (p1, p2) -> p1)
+                .resolve(artifact)
+                .resolve(version)
+                .resolve(artifact + "-" + version + suffix);
+        Files.createDirectories(path.getParent());
+        path = Files.createFile(path);
+        Files.setLastModifiedTime(path, FileTime.from(downloadAt.toInstant(ZoneOffset.UTC)));
+        return path;
+    }
+
+    @Test
+    public void testFindLibrary_direct_notFound() throws IOException {
+        copy(() -> getClass().getResourceAsStream("/xml/xml-2.xml"), maven.resolve("conf").resolve("settings.xml"));
+        Files.createDirectories(FS.getPath("/path/to/local/repo"));
+        assertThat(MavenUtils.findLibrary(GROUP, ARTIFACT, "1.0.0", ".jar", false)).isEmpty();
+    }
+
+    @Test
+    public void testFindLibrary_direct_found() throws IOException {
+        copy(() -> getClass().getResourceAsStream("/xml/xml-2.xml"), maven.resolve("conf").resolve("settings.xml"));
+        Path repo = Files.createDirectories(FS.getPath("/path/to/local/repo"));
+        Path jar = createLibrary(repo, GROUP, ARTIFACT, "1.0.0", ".jar", LocalDateTime.now());
+        assertThat(MavenUtils.findLibrary(GROUP, ARTIFACT, "1.0.0", ".jar", false)).isNotEmpty().contains(jar);
+    }
+
+    @Test
+    public void testFindLibrary_snapshot_latest() throws IOException {
+        copy(() -> getClass().getResourceAsStream("/xml/xml-2.xml"), maven.resolve("conf").resolve("settings.xml"));
+        Path repo = Files.createDirectories(FS.getPath("/path/to/local/repo"));
+        createLibrary(repo, GROUP, ARTIFACT, "1.0.0-094e518ac4-1", ".jar", LocalDateTime.now().minusDays(1));
+        createLibrary(repo, GROUP, ARTIFACT, "1.0.0-094e518ac4-1", ".pom", LocalDateTime.now().minusDays(1));
+        Path jar = createLibrary(repo, GROUP, ARTIFACT, "1.0.0-SNAPSHOT", ".jar", LocalDateTime.now());
+        createLibrary(repo, GROUP, ARTIFACT, "1.0.0-SNAPSHOT", ".pom", LocalDateTime.now());
+        assertThat(MavenUtils.findLibrary(GROUP, ARTIFACT, "1.0.0", ".jar", true)).isNotEmpty().contains(jar);
     }
 }
