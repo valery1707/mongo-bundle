@@ -9,57 +9,21 @@ import org.apache.commons.io.IOUtils;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static com.github.valery1707.mongo.bundle.XmlUtils.extractFromXml;
 import static de.flapdoodle.embed.process.io.file.Files.createTempFile;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 
 @SuppressWarnings("UnnecessarySemicolon")
 public class BundleExtractor implements IDownloader {
-    private Path mavenHome = null;
+    private final boolean snapshot;
 
-    private List<Path> findMavenHome() throws IOException {
-        if (mavenHome != null) {
-            return singletonList(mavenHome);
-        }
-        //region env: MAVEN_HOME
-        String mavenHome = System.getenv("MAVEN_HOME");
-        if (mavenHome != null) {
-            Path home = Paths.get(mavenHome);
-            Path settings = home.resolve("conf").resolve("settings.xml");
-            if (isReadableFile(settings)) {
-                this.mavenHome = extractFromXml(settings, "/settings/localRepository")
-                        .map(path -> path.replace("${user.home}", System.getenv("USERPROFILE")))
-                        .map(Paths::get)
-                        .filter(Files::exists)
-                        .filter(Files::isDirectory)
-                        .filter(Files::isReadable)
-                        .orElse(null);
-                if (this.mavenHome != null) {
-                    return singletonList(this.mavenHome);
-                }
-            }
-        }
-        //endregion
-        //region env: USERPROFILE
-        this.mavenHome = Optional
-                .ofNullable(System.getenv("USERPROFILE"))
-                .map(Paths::get)
-                .map(home -> home.resolve(".m2").resolve("repository"))
-                .filter(Files::exists)
-                .filter(Files::isDirectory)
-                .filter(Files::isReadable)
-                .orElse(null);
-        //endregion
+    public BundleExtractor(boolean snapshot) {
+        this.snapshot = snapshot;
+    }
 
-        return this.mavenHome != null ? singletonList(this.mavenHome) : emptyList();
+    public BundleExtractor() {
+        this(true);
     }
 
     @Override
@@ -80,26 +44,8 @@ public class BundleExtractor implements IDownloader {
                 .toString()
                 .replaceFirst("^V", "")
                 .replace('_', '.');
-        String snapshot = version + "-SNAPSHOT";
-        Path jar = findMavenHome()
-                .stream()
-                .map(path -> path.resolve("com").resolve("github").resolve("valery1707"))
-                .map(path -> path.resolve("mongo-bundle"))
-                .flatMap(path -> Stream
-                        .of(
-                                path.resolve(version),
-                                path.resolve(snapshot)
-                        )
-                        .filter(Files::isDirectory)
-                )
-                .flatMap(path -> Stream
-                        .of(
-                                path.resolve("mongo-bundle" + "-" + version + ".jar"),
-                                path.resolve("mongo-bundle" + "-" + snapshot + ".jar")
-                        )
-                )
-                .filter(BundleExtractor::isReadableFile)
-                .findFirst()
+        Path jar = MavenUtils
+                .findLibrary("com.github.valery1707", "mongo-bundle", version, ".jar", snapshot)
                 .orElseThrow(() -> new IOException("Mongo bundle jar not found"));
         String name = String.format("mongo/%s-%s-%s.%s",
                 distribution.getPlatform(), distribution.getVersion(), distribution.getBitsize(),
@@ -119,9 +65,5 @@ public class BundleExtractor implements IDownloader {
             }
         }
         return ret;
-    }
-
-    private static boolean isReadableFile(Path jar) {
-        return Files.exists(jar) && Files.isRegularFile(jar) && Files.isReadable(jar);
     }
 }
